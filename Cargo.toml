@@ -1,0 +1,13 @@
+[package]
+name = "ignite"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+actix-web = "4"
+serde = { version = "1.0.228", features = ["derive"] }
+thiserror = "2.0.18"
+chrono = { version = "0.4.44", features = ["serde"] }
+uuid = { version = "1.23.0", features = ["v4", "serde"] }
+surrealdb = { version = "3.0.5", features = ["kv-mem"] }
+surrealdb-types = "3.0.5"
