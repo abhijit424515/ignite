@@ -11,7 +11,11 @@ impl Database {
     pub async fn new() -> AppResult<Self> {
         let client = Surreal::new::<Mem>(()).await?;
         client.use_ns("ignite").use_db("ignite").await?;
-        client.query("DEFINE TABLE memory SCHEMALESS;").await?;
+        client
+            .query(
+                "DEFINE TABLE memory SCHEMALESS; DEFINE FIELD content ON memory TYPE string; DEFINE FIELD embedding ON memory TYPE array; DEFINE FIELD created_at ON memory TYPE datetime; DEFINE FIELD updated_at ON memory TYPE datetime; DEFINE TABLE memory_edge TYPE RELATION IN memory OUT memory ENFORCED SCHEMALESS; DEFINE FIELD created_at ON memory_edge TYPE datetime;",
+            )
+            .await?;
 
         Ok(Self { client })
     }
