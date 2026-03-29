@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::common::error::AppError;
 use crate::db::surreal::Database;
 use crate::memory;
-use crate::memory::model::MemoryId;
+use crate::memory::model::{EdgeData, MemoryId};
 
 #[derive(Deserialize, Serialize)]
 pub struct MemoryPayload {
@@ -34,9 +34,13 @@ async fn list_edges(database: web::Data<Database>, id: web::Path<String>) -> Res
 }
 
 #[post("/memory/{id}/edge/{target_id}")]
-async fn add_edge(database: web::Data<Database>, path: web::Path<(String, String)>) -> Result<HttpResponse, AppError> {
+async fn add_edge(
+    database: web::Data<Database>,
+    path: web::Path<(String, String)>,
+    payload: web::Json<EdgeData>,
+) -> Result<HttpResponse, AppError> {
     let (from_id, to_id) = path.into_inner();
-    memory::service::add_edge(database.get_ref(), MemoryId(from_id), MemoryId(to_id)).await?;
+    memory::service::add_edge(database.get_ref(), MemoryId(from_id), MemoryId(to_id), payload.into_inner()).await?;
     Ok(HttpResponse::NoContent().finish())
 }
 

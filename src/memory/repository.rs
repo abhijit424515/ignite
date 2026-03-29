@@ -1,10 +1,11 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use surrealdb_types::{RecordId, RecordIdKey, SurrealValue};
 
 use crate::common::error::{AppError, AppResult};
 use crate::db::surreal::Database;
-use crate::memory::model::{Embedding, Memory, MemoryId};
+use crate::memory::model::{EdgeData, Embedding, Memory, MemoryId};
 
 const TABLE: &str = "memory";
 
@@ -109,27 +110,22 @@ pub async fn search(
     Ok(memories)
 }
 
-pub async fn add_edge(database: &Database, from_id: &MemoryId, to_id: &MemoryId) -> AppResult<()> {
+pub async fn add_edge(database: &Database, from_id: &MemoryId, to_id: &MemoryId, data: &EdgeData) -> AppResult<()> {
     let from_record = record_id(from_id);
     let to_record = record_id(to_id);
-    let mut response = database
-        .client()
-        .query("SELECT VALUE id FROM memory_edge WHERE in = $from AND out = $to LIMIT 1;")
-        .bind(("from", from_record.clone()))
-        .bind(("to", to_record.clone()))
-        .await?;
-
-    let existing: Vec<RecordId> = response.take(0)?;
-
-    if !existing.is_empty() {
-        return Ok(());
-    }
+    let edge_body = json!({
+        "created_at": Utc::now(),
+        "data": data.as_json(),
+    });
 
     database
         .client()
-        .query("RELATE $from->memory_edge->$to SET created_at = time::now();")
-        .bind(("from", from_record))
-        .bind(("to", to_record))
+        .query(
+            "BEGIN TRANSACTION; DELETE memory_edge WHERE in = $from AND out = $to; RELATE $from->memory_edge->$to CONTENT $body; COMMIT TRANSACTION;",
+        )
+        .bind(("from", from_record.clone()))
+        .bind(("to", to_record.clone()))
+        .bind(("body", edge_body))
         .await?;
 
     Ok(())

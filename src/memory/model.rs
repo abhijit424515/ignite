@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Memory {
@@ -23,3 +24,22 @@ impl MemoryId {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Embedding(pub Vec<f32>);
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EdgeData {
+    pub content: String,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl EdgeData {
+    pub fn is_blank(&self) -> bool {
+        self.content.trim().is_empty()
+    }
+
+    pub fn as_json(&self) -> Value {
+        let mut object = self.extra.clone();
+        object.insert("content".to_string(), Value::String(self.content.clone()));
+        Value::Object(object)
+    }
+}

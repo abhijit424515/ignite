@@ -1,9 +1,10 @@
 use actix_web::{App, http::StatusCode, test, web};
+use serde_json::json;
 
 use crate::api::{MemoryPayload, configure};
 use crate::common::error::AppError;
 use crate::db::surreal::Database;
-use crate::memory::model::{Memory, MemoryId};
+use crate::memory::model::{EdgeData, Memory, MemoryId};
 use crate::memory::service;
 
 #[actix_web::test]
@@ -29,6 +30,11 @@ async fn edge_routes_work() {
 
     let add_request = test::TestRequest::post()
         .uri(&format!("/memory/{}/edge/{}", first.id.0, second.id.0))
+        .set_json(json!({
+            "content": "parent",
+            "weight": 2,
+            "kind": "reference"
+        }))
         .to_request();
     let add_response = test::call_service(&app, add_request).await;
     assert_eq!(add_response.status(), StatusCode::NO_CONTENT);
@@ -101,7 +107,15 @@ async fn memory_flow_works() {
         .expect("search should work");
     assert!(search_results.iter().any(|memory| memory.id == first.id));
 
-    service::add_edge(&database, first.id.clone(), second.id.clone())
+    service::add_edge(
+        &database,
+        first.id.clone(),
+        second.id.clone(),
+        EdgeData {
+            content: "related".to_string(),
+            extra: Default::default(),
+        },
+    )
         .await
         .expect("edge should be added");
     let edges = service::list_edges(&database, first.id.clone())
@@ -134,9 +148,47 @@ async fn add_edge_rejects_self_links() {
         .await
         .expect("memory should be created");
 
-    let error = service::add_edge(&database, memory.id.clone(), memory.id.clone())
+    let error = service::add_edge(
+        &database,
+        memory.id.clone(),
+        memory.id.clone(),
+        EdgeData {
+            content: "self".to_string(),
+            extra: Default::default(),
+        },
+    )
         .await
         .expect_err("self edge should fail");
 
     assert!(matches!(error, AppError::BadRequest(_)));
+}
+
+#[actix_web::test]
+async fn add_edge_rejects_blank_content() {
+    let database = web::Data::new(Database::new().await.expect("database should initialize"));
+    let app = test::init_service(App::new().app_data(database).configure(configure)).await;
+
+    let create_first = test::TestRequest::post()
+        .uri("/memory")
+        .set_json(&MemoryPayload {
+            content: "first node".to_string(),
+        })
+        .to_request();
+    let first: Memory = test::call_and_read_body_json(&app, create_first).await;
+
+    let create_second = test::TestRequest::post()
+        .uri("/memory")
+        .set_json(&MemoryPayload {
+            content: "second node".to_string(),
+        })
+        .to_request();
+    let second: Memory = test::call_and_read_body_json(&app, create_second).await;
+
+    let request = test::TestRequest::post()
+        .uri(&format!("/memory/{}/edge/{}", first.id.0, second.id.0))
+        .set_json(json!({ "content": "   " }))
+        .to_request();
+
+    let response = test::call_service(&app, request).await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }

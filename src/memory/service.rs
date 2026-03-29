@@ -1,10 +1,10 @@
 use chrono::Utc;
 use uuid::Uuid;
 
-use crate::common::error::AppResult;
+use crate::common::error::{AppError, AppResult};
 use crate::db::surreal::Database;
 use crate::embedding::client::embed;
-use crate::memory::model::{Embedding, Memory, MemoryId};
+use crate::memory::model::{EdgeData, Embedding, Memory, MemoryId};
 use crate::memory::repository;
 
 pub async fn get_memory(database: &Database, id: MemoryId) -> AppResult<Memory> {
@@ -43,15 +43,18 @@ pub async fn delete_memory(database: &Database, id: MemoryId) -> AppResult<()> {
     repository::delete(database, &id).await
 }
 
-pub async fn add_edge(database: &Database, from_id: MemoryId, to_id: MemoryId) -> AppResult<()> {
+pub async fn add_edge(database: &Database, from_id: MemoryId, to_id: MemoryId, data: EdgeData) -> AppResult<()> {
     if from_id == to_id {
-        return Err(crate::common::error::AppError::BadRequest(
-            "cannot create an edge to the same memory".to_string(),
-        ));
+        return Err(AppError::BadRequest("cannot create an edge to the same memory".to_string()));
     }
 
+    if data.is_blank() {
+        return Err(AppError::BadRequest("edge content cannot be empty".to_string()));
+    }
+
+    repository::get(database, &from_id).await?;
     repository::get(database, &to_id).await?;
-    repository::add_edge(database, &from_id, &to_id).await
+    repository::add_edge(database, &from_id, &to_id, &data).await
 }
 
 pub async fn remove_edge(database: &Database, from_id: MemoryId, to_id: MemoryId) -> AppResult<()> {
