@@ -41,6 +41,7 @@ The server listens on `127.0.0.1:8080`.
 
 - `POST /memory` with `{ "content": "..." }`
 - `GET /memory/{id}`
+- `GET /memory/{id}/edge`
 - `PUT /memory/{id}` with `{ "content": "..." }`
 - `DELETE /memory/{id}`
 - `GET /search?q=...`
